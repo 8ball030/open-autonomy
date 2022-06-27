@@ -1990,7 +1990,7 @@ class AbciApp(
         """Process a round event."""
         if self._current_round_cls is None:
             log_message = self.__LogMessages.cannot_process_event.value
-            self.logger.info(log_message.format(**dict(event=event)))
+            self.logger.info(log_message.format(event=event))
             return
 
         next_round_cls = self.transition_function[self._current_round_cls].get(
@@ -2018,9 +2018,9 @@ class AbciApp(
         :param timestamp: the latest block's timestamp.
         """
         log_message = self.__LogMessages.arrived_at_block.value
-        self.logger.info(log_message.format(**dict(timestamp=timestamp)))
+        self.logger.info(log_message.format(timestamp=timestamp))
         log_message = self.__LogMessages.current_time.value
-        self.logger.info(log_message.format(**dict(timestamp=self._last_timestamp)))
+        self.logger.info(log_message.format(timestamp=self._last_timestamp))
         self._timeouts.pop_earliest_cancelled_timeouts()
 
         if self._timeouts.size == 0:
@@ -2049,7 +2049,7 @@ class AbciApp(
             # the impact)
             self._last_timestamp = timestamp
             log_message = self.__LogMessages.time_after_deadline.value
-            self.logger.info(log_message.format(**dict(timestamp=self.last_timestamp)))
+            self.logger.info(log_message.format(timestamp=self.last_timestamp))
 
             self.process_event(timeout_event)
 
@@ -2063,7 +2063,7 @@ class AbciApp(
         # new block's timestamp
         self._last_timestamp = timestamp
         log_message = self.__LogMessages.final_abci_app_time.value
-        self.logger.debug(log_message.format(**dict(timestamp=self._last_timestamp)))
+        self.logger.debug(log_message.format(timestamp=self._last_timestamp))
 
     def cleanup(self, cleanup_history_depth: int) -> None:
         """Clear data."""
