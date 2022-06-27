@@ -1771,11 +1771,15 @@ class AbciApp(
         no_pending_timeout = "no pending timeout, move time forward"
         final_abci_app_time = "final AbciApp time: {timestamp}"
         # timeout
-        expired_deadline = "expired deadline {deadline} with event {event} at AbciApp time {timestamp}"
+        expired_deadline = (
+            "expired deadline {deadline} with event {event} at AbciApp time {timestamp}"
+        )
         time_after_deadline = "current AbciApp time after expired deadline: {timestamp}"
         # exceptions
         dead_end = "AbciApp has reached a dead end."
-        cannot_process_event = "cannot process event '{event}' as current state is not set"
+        cannot_process_event = (
+            "cannot process event '{event}' as current state is not set"
+        )
 
     initial_round_cls: AppState
     initial_states: Set[AppState] = set()
@@ -2038,7 +2042,9 @@ class AbciApp(
             # priority queue and process the timeout event.
             expired_deadline, timeout_event = self._timeouts.pop_timeout()
             log_message = self.__LogMessages.expired_deadline.value
-            kwargs = dict(deadline=expired_deadline, event=timeout_event, timestamp=timestamp)
+            kwargs = dict(
+                deadline=expired_deadline, event=timeout_event, timestamp=timestamp
+            )
             self.logger.warning(log_message.format(**kwargs))
 
             # the last timestamp now becomes the expired deadline
