@@ -166,6 +166,16 @@ class TcpServerChannel()
 
 TCP server channel to handle incoming communication from the Tendermint node.
 
+<a id="packages.valory.connections.abci.connection.TcpServerChannel.LogMessages"></a>
+
+## LogMessages Objects
+
+```python
+class LogMessages(Enum)
+```
+
+LogMessages of the TcpServerChannel
+
 <a id="packages.valory.connections.abci.connection.TcpServerChannel.__init__"></a>
 
 #### `__`init`__`

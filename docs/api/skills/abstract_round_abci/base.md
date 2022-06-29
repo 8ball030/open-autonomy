@@ -1880,6 +1880,16 @@ Base class for ABCI apps.
 
 Concrete classes of this class implement the ABCI App.
 
+<a id="packages.valory.skills.abstract_round_abci.base.AbciApp.LogMessages"></a>
+
+## LogMessages Objects
+
+```python
+class LogMessages(Enum)
+```
+
+LogMessages for AbciApp
+
 <a id="packages.valory.skills.abstract_round_abci.base.AbciApp.__init__"></a>
 
 #### `__`init`__`

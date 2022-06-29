@@ -1148,11 +1148,10 @@ class TestAbciApp:
 
     def test_process_event_negative_case(self) -> None:
         """Test the 'process_event' method, negative case."""
+        log_message = AbciApp.LogMessages.cannot_process_event.value
         with mock.patch.object(self.abci_app.logger, "info") as mock_info:
             self.abci_app.process_event("a")
-            mock_info.assert_called_with(
-                "cannot process event 'a' as current state is not set"
-            )
+            mock_info.assert_called_with(log_message, "a")
 
     def test_update_time(self) -> None:
         """Test the 'update_time' method."""
