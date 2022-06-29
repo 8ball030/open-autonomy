@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+from enum import Enum
 import platform
 import signal
 import subprocess  # nosec
@@ -215,6 +216,21 @@ class VarintMessageReader:  # pylint: disable=too-few-public-methods
 class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
     """TCP server channel to handle incoming communication from the Tendermint node."""
 
+    class LogMessages(Enum):
+        """LogMessages of the TcpServerChannel"""
+
+        connection_with_tendermint = "Connection with Tendermint @ {peer_name}"
+        closed_connection = "Tendermint node {peer_name} closed connection."
+        received_bytes = "Received {n_bytes} bytes from connection {peer_name}"
+        error_while_reading = "An error occurred while reading a message. {cls_name}: {e}. The message will be ignored."
+        end_of_file = "connection at EOF, stop receiving loop."
+        too_large_varint = "A message exceeding the configured max size was received. {cls_name}: {e}. Closing the connection to the node."
+        cancelled = "Read task for peer {peer_name} cancelled."
+        received_message_type = "Received message of type: {message_type}"
+        request_not_implemented = "Decoded request {message_type} was not a match."
+        could_not_create_dialogue = "Could not create dialogue for message={message}"
+        writing_bytes = "Writing {n_bytes} bytes"
+
     def __init__(
         self,
         target_skill_id: PublicId,
@@ -298,56 +314,54 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
         ip_address, socket, *_ = writer.get_extra_info("peername")
         peer_name = f"{ip_address}:{socket}"
         self._streams_by_socket[peer_name] = (reader, writer)
-        self.logger.debug(f"Connection with Tendermint @ {peer_name}")
+        log_message = self.LogMessages.connection_with_tendermint.value
+        self.logger.debug(log_message.format(peer_name=peer_name))
 
         varint_message_reader = VarintMessageReader(reader)
         while not self.is_stopped:
             try:
                 message_bytes = await varint_message_reader.read_next_message()
                 if len(message_bytes) == 0:
-                    self.logger.error(
-                        f"Tendermint node {peer_name} closed connection."
-                    )  # pragma: nocover
+                    log_message = self.LogMessages.closed_connection.value
+                    self.logger.error(log_message.format(peer_name=peer_name))  # pragma: nocover
                     # break to the _stop if the connection stops
                     break  # pragma: nocover
-                self.logger.debug(
-                    f"Received {len(message_bytes)} bytes from connection {peer_name}"
-                )
+                log_message = self.LogMessages.received_bytes.value
+                kwargs = dict(n_bytes=len(message_bytes), peer_name=peer_name)
+                self.logger.debug(log_message.format(**kwargs))
                 message = Request()
                 message.ParseFromString(message_bytes)
             except (
                 DecodeVarintError,
                 DecodeError,
             ) as e:  # pragma: nocover
-                self.logger.error(
-                    f"an error occurred while reading a message: "
-                    f"{type(e).__name__}: {e}. "
-                    f"The message will be ignored."
-                )
+                log_message = self.LogMessages.error_while_reading.value
+                kwargs = dict(cls_name=type(e).__name__, e=e)
+                self.logger.error(log_message.format(**kwargs))
                 if reader.at_eof():
-                    self.logger.info("connection at EOF, stop receiving loop.")
+                    self.logger.info(self.LogMessages.end_of_file.value)
                     return
                 continue
             except TooLargeVarint as e:  # pragma: nocover
-                self.logger.error(
-                    f"A message exceeding the configured max size was received. "
-                    f"{type(e).__name__}: {e} "
-                    f"Closing the connection to the node."
-                )
+                log_message = self.LogMessages.too_large_varint.value
+                kwargs = dict(cls_name=type(e).__name__, e=e)
+                self.logger.error(log_message.format(**kwargs))
                 await self.disconnect()
                 return
             except EOFError:
-                self.logger.info("connection at EOF, stop receiving loop.")
+                self.logger.info(self.LogMessages.end_of_file.value)
                 return
             except CancelledError:  # pragma: nocover
-                self.logger.debug(f"Read task for peer {peer_name} cancelled.")
+                log_message = self.LogMessages.cancelled.value
+                self.logger.debug(log_message.format(peer_name=peer_name))
                 return
             await self._handle_message(message, peer_name)
 
     async def _handle_message(self, message: Request, peer_name: str) -> None:
         """Handle a single message from a peer."""
         req_type = message.WhichOneof("value")
-        self.logger.debug(f"Received message of type: {req_type}")
+        log_message = self.LogMessages.received_message_type.value
+        self.logger.debug(log_message.format(message_type=req_type))
         result = _TendermintProtocolDecoder.process(
             message, self._dialogues, str(self.target_skill_id)
         )
@@ -358,7 +372,8 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
             envelope = Envelope(to=request.to, sender=request.sender, message=request)
             await cast(asyncio.Queue, self.queue).put(envelope)
         else:  # pragma: nocover
-            self.logger.warning(f"Decoded request {req_type} was not a match.")
+            log_message = self.LogMessages.request_not_implemented.value
+            self.logger.warning(log_message.format(message_type=req_type))
 
     async def get_message(self) -> Envelope:
         """Get a message from the queue."""
@@ -370,7 +385,8 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
         message = cast(AbciMessage, envelope.message)
         dialogue = self._dialogues.update(message)
         if dialogue is None:  # pragma: nocover
-            self.logger.warning(f"Could not create dialogue for message={message}")
+            log_message = self.LogMessages.could_not_create_dialogue.value
+            self.logger.warning(log_message.format(message=message))
             return
 
         # we only deal with atomic request-response cycles, so it is safe to remove the reference
@@ -378,7 +394,8 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
         _reader, writer = self._streams_by_socket[peer_name]
         protobuf_message = _TendermintProtocolEncoder.process(message)
         data = _TendermintABCISerializer.write_message(protobuf_message)
-        self.logger.debug(f"Writing {len(data)} bytes")
+        log_message = self.LogMessages.writing_bytes.value
+        self.logger.debug(log_message.format(n_bytes=len(data)))
         writer.write(data)
 
 
