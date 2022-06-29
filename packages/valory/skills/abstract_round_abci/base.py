@@ -1786,27 +1786,25 @@ class AbciApp(
     Concrete classes of this class implement the ABCI App.
     """
 
-    class __LogMessages(Enum):
+    class LogMessages(Enum):
         """LogMessages for AbciApp"""
 
-        start = "Entered in the '{round_id}' round for period {period_count}"
-        end = "'{round_id}' round is done with event: {event}"
-        scheduling_round = "scheduling new round: {round_cls}"
-        scheduling_timeout = "scheduling timeout of {timeout} seconds for event {event} with deadline {deadline}"
-        arrived_at_block = "arrived block with timestamp: {timestamp}"
-        current_time = "current AbciApp time: {timestamp}"
-        no_pending_timeout = "no pending timeout, move time forward"
-        final_abci_app_time = "final AbciApp time: {timestamp}"
-        # timeout
-        expired_deadline = (
-            "expired deadline {deadline} with event {event} at AbciApp time {timestamp}"
+        start = "Entered in the '%s' round for period %s"
+        end = "'%s' round is done with event: %s"
+        scheduling_round = "scheduling new round: %s"
+        scheduling_timeout = (
+            "scheduling timeout of %s seconds for event %s with deadline %s"
         )
-        time_after_deadline = "current AbciApp time after expired deadline: {timestamp}"
+        arrived_at_block = "arrived block with timestamp: %s"
+        current_time = "current AbciApp time: %s"
+        no_pending_timeout = "no pending timeout, move time forward"
+        final_abci_app_time = "final AbciApp time: %s"
+        # timeout
+        expired_deadline = "expired deadline %s with event %s at AbciApp time %s"
+        time_after_deadline = "current AbciApp time after expired deadline: %s"
         # exceptions
         dead_end = "AbciApp has reached a dead end."
-        cannot_process_event = (
-            "cannot process event '{event}' as current state is not set"
-        )
+        cannot_process_event = "cannot process event '%s' as current state is not set"
 
     initial_round_cls: AppState
     initial_states: Set[AppState] = set()
@@ -1889,16 +1887,14 @@ class AbciApp(
         """Log the entering in the round."""
         round_id = self.current_round.round_id
         period_count = self.synchronized_data.period_count
-        kwargs = {"round_id": round_id, "period_count": period_count}
-        log_msg = self.__LogMessages.start.value
-        self.logger.info(log_msg.format(**kwargs))
+        log_msg = self.LogMessages.start.value
+        self.logger.info(log_msg, round_id, period_count)
 
     def _log_end(self, event: EventType) -> None:
         """Log the exiting from the round."""
         round_id = self.current_round.round_id
-        kwargs = {"round_id": round_id, "event": event}
-        log_msg = self.__LogMessages.end.value
-        self.logger.info(log_msg.format(**kwargs))
+        log_msg = self.LogMessages.end.value
+        self.logger.info(log_msg, round_id, event)
 
     def _extend_previous_rounds_with_current_round(self) -> None:
         self._previous_rounds.append(self.current_round)
@@ -1916,8 +1912,8 @@ class AbciApp(
 
         :param round_cls: the class of the new round.
         """
-        log_message = self.__LogMessages.scheduling_round.value
-        self.logger.debug(log_message.format(round_cls=round_cls))
+        log_message = self.LogMessages.scheduling_round.value
+        self.logger.debug(log_message, round_cls)
         for entry_id in self._current_timeout_entries:
             self._timeouts.cancel_timeout(entry_id)
 
@@ -1934,9 +1930,8 @@ class AbciApp(
                 # time if we're scheduling from within update_time
                 deadline = self.last_timestamp + datetime.timedelta(0, timeout)
                 entry_id = self._timeouts.add_timeout(deadline, event)
-                kwargs = dict(timeout=timeout, event=event, deadline=deadline)
-                log_message = self.__LogMessages.scheduling_timeout.value
-                self.logger.info(log_message.format(**kwargs))
+                log_message = self.LogMessages.scheduling_timeout.value
+                self.logger.info(log_message, timeout, event, deadline)
                 self._current_timeout_entries.append(entry_id)
 
         # self.state will point to last result,
@@ -2020,8 +2015,8 @@ class AbciApp(
     ) -> None:
         """Process a round event."""
         if self._current_round_cls is None:
-            log_message = self.__LogMessages.cannot_process_event.value
-            self.logger.info(log_message.format(event=event))
+            log_message = self.LogMessages.cannot_process_event.value
+            self.logger.info(log_message, event)
             return
 
         next_round_cls = self.transition_function[self._current_round_cls].get(
@@ -2038,7 +2033,7 @@ class AbciApp(
         if next_round_cls is not None:
             self._schedule_round(next_round_cls)
         else:
-            self.logger.warning(self.__LogMessages.dead_end)
+            self.logger.warning(self.LogMessages.dead_end)
             self._current_round_cls = None
             self._current_round = None
 
@@ -2048,18 +2043,17 @@ class AbciApp(
 
         :param timestamp: the latest block's timestamp.
         """
-        log_message = self.__LogMessages.arrived_at_block.value
-        self.logger.info(log_message.format(timestamp=timestamp))
-        log_message = self.__LogMessages.current_time.value
-        self.logger.info(log_message.format(timestamp=self._last_timestamp))
+        log_message = self.LogMessages.arrived_at_block.value
+        self.logger.info(log_message, timestamp)
+        log_message = self.LogMessages.current_time.value
+        self.logger.info(log_message, self._last_timestamp)
         self._timeouts.pop_earliest_cancelled_timeouts()
 
         if self._timeouts.size == 0:
             # if no pending timeouts, then it is safe to
             # move forward the last known timestamp to the
             # latest block's timestamp.
-            log_message = self.__LogMessages.no_pending_timeout.value
-            self.logger.info(log_message)
+            self.logger.info(self.LogMessages.no_pending_timeout.value)
             self._last_timestamp = timestamp
             return
 
@@ -2068,11 +2062,8 @@ class AbciApp(
             # the earliest deadline is expired. Pop it from the
             # priority queue and process the timeout event.
             expired_deadline, timeout_event = self._timeouts.pop_timeout()
-            log_message = self.__LogMessages.expired_deadline.value
-            kwargs = dict(
-                deadline=expired_deadline, event=timeout_event, timestamp=timestamp
-            )
-            self.logger.warning(log_message.format(**kwargs))
+            log_message = self.LogMessages.expired_deadline.value
+            self.logger.warning(log_message, expired_deadline, timeout_event, timestamp)
 
             # the last timestamp now becomes the expired deadline
             # clearly, it is earlier than the current highest known
@@ -2081,8 +2072,8 @@ class AbciApp(
             # of the next rounds. (for now we set it to timestamp to explore
             # the impact)
             self._last_timestamp = timestamp
-            log_message = self.__LogMessages.time_after_deadline.value
-            self.logger.info(log_message.format(timestamp=self.last_timestamp))
+            log_message = self.LogMessages.time_after_deadline.value
+            self.logger.info(log_message, self.last_timestamp)
 
             self.process_event(timeout_event)
 
@@ -2095,8 +2086,8 @@ class AbciApp(
         # so it is safe to move forward the last known timestamp to the
         # new block's timestamp
         self._last_timestamp = timestamp
-        log_message = self.__LogMessages.final_abci_app_time.value
-        self.logger.debug(log_message.format(timestamp=self._last_timestamp))
+        log_message = self.LogMessages.final_abci_app_time.value
+        self.logger.debug(log_message, self._last_timestamp)
 
     def cleanup(self, cleanup_history_depth: int) -> None:
         """Clear data."""

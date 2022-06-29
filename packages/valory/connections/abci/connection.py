@@ -21,11 +21,11 @@ import asyncio
 import json
 import logging
 import os
-from enum import Enum
 import platform
 import signal
 import subprocess  # nosec
 from asyncio import AbstractEventLoop, AbstractServer, CancelledError, Task
+from enum import Enum
 from io import BytesIO
 from logging import Logger
 from pathlib import Path
@@ -219,17 +219,17 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
     class LogMessages(Enum):
         """LogMessages of the TcpServerChannel"""
 
-        connection_with_tendermint = "Connection with Tendermint @ {peer_name}"
-        closed_connection = "Tendermint node {peer_name} closed connection."
-        received_bytes = "Received {n_bytes} bytes from connection {peer_name}"
-        error_while_reading = "An error occurred while reading a message. {cls_name}: {e}. The message will be ignored."
+        connection_with_tendermint = "Connection with Tendermint @ %s"
+        closed_connection = "Tendermint node %s closed connection."
+        received_bytes = "Received %s bytes from connection %s"
+        error_while_reading = "An error occurred while reading a message. %s: %s. The message will be ignored."
         end_of_file = "connection at EOF, stop receiving loop."
-        too_large_varint = "A message exceeding the configured max size was received. {cls_name}: {e}. Closing the connection to the node."
-        cancelled = "Read task for peer {peer_name} cancelled."
-        received_message_type = "Received message of type: {message_type}"
-        request_not_implemented = "Decoded request {message_type} was not a match."
-        could_not_create_dialogue = "Could not create dialogue for message={message}"
-        writing_bytes = "Writing {n_bytes} bytes"
+        too_large_varint = "A message exceeding the configured max size was received. %s: %s. Closing the connection to the node."
+        cancelled = "Read task for peer %s cancelled."
+        received_message_type = "Received message of type: %s"
+        request_not_implemented = "Decoded request %s was not a match."
+        could_not_create_dialogue = "Could not create dialogue for message=%s"
+        writing_bytes = "Writing %s bytes"
 
     def __init__(
         self,
@@ -315,7 +315,7 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
         peer_name = f"{ip_address}:{socket}"
         self._streams_by_socket[peer_name] = (reader, writer)
         log_message = self.LogMessages.connection_with_tendermint.value
-        self.logger.debug(log_message.format(peer_name=peer_name))
+        self.logger.debug(log_message.format(log_message, peer_name))
 
         varint_message_reader = VarintMessageReader(reader)
         while not self.is_stopped:
@@ -323,12 +323,11 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
                 message_bytes = await varint_message_reader.read_next_message()
                 if len(message_bytes) == 0:
                     log_message = self.LogMessages.closed_connection.value
-                    self.logger.error(log_message.format(peer_name=peer_name))  # pragma: nocover
+                    self.logger.error(log_message, peer_name)  # pragma: nocover
                     # break to the _stop if the connection stops
                     break  # pragma: nocover
                 log_message = self.LogMessages.received_bytes.value
-                kwargs = dict(n_bytes=len(message_bytes), peer_name=peer_name)
-                self.logger.debug(log_message.format(**kwargs))
+                self.logger.debug(log_message, len(message_bytes), peer_name)
                 message = Request()
                 message.ParseFromString(message_bytes)
             except (
@@ -336,16 +335,14 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
                 DecodeError,
             ) as e:  # pragma: nocover
                 log_message = self.LogMessages.error_while_reading.value
-                kwargs = dict(cls_name=type(e).__name__, e=e)
-                self.logger.error(log_message.format(**kwargs))
+                self.logger.error(log_message, type(e).__name__, e)
                 if reader.at_eof():
                     self.logger.info(self.LogMessages.end_of_file.value)
                     return
                 continue
             except TooLargeVarint as e:  # pragma: nocover
                 log_message = self.LogMessages.too_large_varint.value
-                kwargs = dict(cls_name=type(e).__name__, e=e)
-                self.logger.error(log_message.format(**kwargs))
+                self.logger.error(log_message, type(e).__name__, e)
                 await self.disconnect()
                 return
             except EOFError:
@@ -353,7 +350,7 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
                 return
             except CancelledError:  # pragma: nocover
                 log_message = self.LogMessages.cancelled.value
-                self.logger.debug(log_message.format(peer_name=peer_name))
+                self.logger.debug(log_message, peer_name)
                 return
             await self._handle_message(message, peer_name)
 
@@ -373,7 +370,7 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
             await cast(asyncio.Queue, self.queue).put(envelope)
         else:  # pragma: nocover
             log_message = self.LogMessages.request_not_implemented.value
-            self.logger.warning(log_message.format(message_type=req_type))
+            self.logger.warning(log_message, req_type)
 
     async def get_message(self) -> Envelope:
         """Get a message from the queue."""
@@ -386,7 +383,7 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
         dialogue = self._dialogues.update(message)
         if dialogue is None:  # pragma: nocover
             log_message = self.LogMessages.could_not_create_dialogue.value
-            self.logger.warning(log_message.format(message=message))
+            self.logger.warning(log_message, message)
             return
 
         # we only deal with atomic request-response cycles, so it is safe to remove the reference
@@ -395,7 +392,7 @@ class TcpServerChannel:  # pylint: disable=too-many-instance-attributes
         protobuf_message = _TendermintProtocolEncoder.process(message)
         data = _TendermintABCISerializer.write_message(protobuf_message)
         log_message = self.LogMessages.writing_bytes.value
-        self.logger.debug(log_message.format(n_bytes=len(data)))
+        self.logger.debug(log_message, len(data))
         writer.write(data)
 
 
