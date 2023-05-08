@@ -13,5 +13,5 @@ aea fetch $AEA_AGENT --alias agent || exit 1
 cd agent
 
 echo "Installing the necessary dependencies!"
-aea install || exit 1
+aea install && aea build || exit 1
 cd ..
