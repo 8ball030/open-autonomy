@@ -1,4 +1,5 @@
 #! /bin/bash
+set -e
 
 # Debug mode
 if [ "$DEBUG" == "1" ];
@@ -39,7 +40,7 @@ then
     aea generate-key cosmos --connection --password $AEA_PASSWORD
     aea add-key cosmos --connection --password $AEA_PASSWORD || (echo "Failed to generate the cosmos key needed for libp2p connection" && exit 1)
     aea add-key ethereum --password $AEA_PASSWORD
-    
+
     if grep "open-aea-ledger-ethereum-flashbots" aea-config.yaml -q
     then
         aea add-key ethereum_flashbots --password $AEA_PASSWORD
@@ -52,7 +53,7 @@ else
     aea generate-key cosmos --connection
     aea add-key cosmos --connection || (echo "Failed to generate the cosmos key needed for libp2p connection" && exit 1)
     aea add-key ethereum
-    
+
     if grep "open-aea-ledger-ethereum-flashbots" aea-config.yaml -q
     then
         aea add-key ethereum_flashbots
