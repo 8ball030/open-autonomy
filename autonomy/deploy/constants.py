@@ -39,6 +39,7 @@ DEFAULT_ENCODING = "utf-8"
 
 KEY_SCHEMA_ADDRESS = "address"
 KEY_SCHEMA_PRIVATE_KEY = "private_key"
+KEY_SCHEMA_TYPE = "key_type"
 
 
 PERSISTENT_DATA_DIR = "persistent_data"
@@ -48,6 +49,7 @@ BENCHMARKS_DIR = "benchmarks"
 VENVS_DIR = "venvs"
 AGENT_KEYS_DIR = "agent_keys"
 DOCKERFILES = "Dockerfiles"
+PRIVATE_KEY_TYPE_KEY = "key_type"
 
 
 INFO = "INFO"
